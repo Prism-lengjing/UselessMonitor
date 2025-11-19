@@ -1,0 +1,9 @@
+# Monorepo artifacts
+frontend/node_modules/
+frontend/dist/
+backend/monitors.db
+.DS_Store
+
+# Editor folders
+.vscode/
+.idea/
