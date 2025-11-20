@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
@@ -15,6 +17,9 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+//go:embed assets/statics
+var embeddedFrontend embed.FS
 
 // Monitor represents a monitored target and its latest state.
 type Monitor struct {
@@ -169,6 +174,7 @@ func main() {
 	checker.start(context.Background(), interval)
 
 	router := gin.Default()
+	serveEmbeddedFrontend(router)
 
 	router.GET("/monitor", authorize(readKey, adminKey, true), func(c *gin.Context) {
 		var monitors []Monitor
@@ -319,6 +325,60 @@ func main() {
 	if err := router.Run(); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}
+}
+
+func serveEmbeddedFrontend(router *gin.Engine) {
+	sub, err := fs.Sub(embeddedFrontend, "assets/statics")
+	if err != nil {
+		log.Fatalf("failed to load embedded frontend: %v", err)
+	}
+
+	fileServer := http.FileServer(http.FS(sub))
+
+	router.NoRoute(func(c *gin.Context) {
+		if c.Request.Method != http.MethodGet {
+			c.JSON(http.StatusNotFound, gin.H{"message": "Not Found"})
+			return
+		}
+
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/monitor") || strings.HasPrefix(path, "/status") {
+			c.JSON(http.StatusNotFound, gin.H{"message": "Not Found"})
+			return
+		}
+
+		requested := strings.TrimPrefix(path, "/")
+		if requested == "" {
+			requested = "index.html"
+		}
+
+		if fileExists(sub, requested) {
+			c.Request.URL.Path = "/" + requested
+			fileServer.ServeHTTP(c.Writer, c.Request)
+			return
+		}
+
+		data, err := fs.ReadFile(sub, "index.html")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Frontend unavailable"})
+			return
+		}
+
+		c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+	})
+}
+
+func fileExists(fsys fs.FS, name string) bool {
+	file, err := fsys.Open(name)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
 }
 
 // authorize returns middleware enforcing key-based access control.

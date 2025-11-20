@@ -2,6 +2,8 @@
 frontend/node_modules/
 frontend/dist/
 backend/monitors.db
+backend/assets/statics/*
+!backend/assets/statics/placeholder.txt
 .DS_Store
 
 # Editor folders
