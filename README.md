@@ -56,3 +56,26 @@ Configuration instructions (copying `frontend/public/config.example.json` to `fr
 3. Update `frontend/public/config.json` so the dashboard knows which backend URL and read key to use.
 
 Both services are intentionally lightweight so they can be deployed together or independently depending on your infrastructure.
+
+## Bundled Release Binary
+
+This repository intentionally keeps `backend/assets/statics` empty so the Git history never contains a stale React build. The
+production workflow lives in [`.github/workflows/release.yml`](.github/workflows/release.yml), runs on every push, and publishes
+release artifacts when a `v*` tag is present (or the workflow is manually dispatched):
+
+1. Install frontend dependencies and run `npm run build` so the static bundle lands inside `backend/assets/statics/`.
+2. Run `go test ./...` inside `backend/`.
+3. Compile a Linux `amd64` binary with the freshly built frontend embedded and publish it as a GitHub Release asset.
+
+To reproduce the same one-click binary locally:
+
+```bash
+cd frontend
+npm install
+npm run build  # emits into ../backend/assets/statics
+
+cd ../backend
+go build -o uselessmonitor
+```
+
+The resulting `uselessmonitor` executable already serves the React app because the build output is embedded at compile time.
